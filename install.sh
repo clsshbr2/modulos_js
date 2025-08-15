@@ -9,6 +9,7 @@ senha_autenticacao="$1"
 urlonlines="$2"
 porta2="$3"
 
+sudo rm -f "/usr/local/install*"
 rm -r /usr/local/modulos_js
 
 #Instalar wget e outros

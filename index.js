@@ -9,14 +9,14 @@ const { execSync } = require('child_process');
 const cron = require('node-cron');
 
 //Modulos
-const { crearteste } = require('modulos/addteste');
-const { criaruserssh } = require('modulos/addlogin');
-const { criarUserv2 } = require('modulos/addV2');
-const { criarUserxray } = require('modulos/addxray');
-const { deletexray_v2ray } = require('modulos/deletexrayV2ray');
-const { deleteUser } = require('modulos/deleteUser');
-const { getOnlineUsers } = require('modulos/onlinesssh');
-const { getonlinesV2 } = require('modulos/onlinesV2');
+const { crearteste } = require('./modulos/addteste');
+const { criarUserv2 } = require('./modulos/addV2');
+const { criarUserxray } = require('./modulos/addxray');
+const { deletexray_v2ray } = require('./modulos/deletexrayV2ray');
+const { deleteUser } = require('./modulos/deleteUser');
+const { getOnlineUsers } = require('./modulos/onlinesssh');
+const { getonlinesV2 } = require('./modulos/onlinesV2');
+const { criaruserssh } = require('./modulos/addlogin');
 
 const configpasta = 'config.json'
 if (!fs.existsSync(configpasta)) {
