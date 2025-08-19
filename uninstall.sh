@@ -2,10 +2,10 @@
 export DEBIAN_FRONTEND=noninteractive
 
 # Parar o PM2 e remover os serviços
-pm2 stop servidor2
-pm2 delete servidor2
+pm2 stop servidor
+pm2 delete servidor
 pm2 save
-pm2 shutdown
+pm2 startup
 
 apt-get autoremove --purge -y
 apt-get clean
@@ -15,7 +15,6 @@ rm -rf /usr/local/modulos_js
 rm -rf /usr/local/eclipse
 rm -rf /usr/local/modulos.zip
 rm -rf /usr/local/install.sh
-rm -rf /etc/firewalld
 
 # Remover o script de instalação
 rm -f /usr/local/uninstall.sh

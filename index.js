@@ -7,6 +7,9 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const { execSync } = require('child_process');
 const cron = require('node-cron');
+const https = require('https');
+const selfsigned = require('selfsigned');
+const { Server: WebSocketServer } = require('ws');
 
 //Modulos
 const { crearteste } = require('./modulos/addteste');
@@ -299,9 +302,40 @@ app.post('/', (authenticate), async (req, res) => {
 
 });
 
-// Inicializa o servidor
-app.listen(port, () => {
-    console.log('Servidor iniciado');
+// --- HTTPS Self-Signed ---
+const attrs = [{ name: 'commonName', value: 'localhost' }];
+const pems = selfsigned.generate(attrs, { days: 365 });
+
+const server = https.createServer({
+    key: pems.private,
+    cert: pems.cert
+}, app);
+
+
+server.listen(port, () => {
+    console.log(`Servidor HTTPS iniciado na porta ${port}`);
+});
+
+const wss = new WebSocketServer({ server, path: '/webssh' });
+
+wss.on('connection', (ws) => {
+    console.log('Cliente conectado ao WebSSH');
+
+    ws.on('message', async (msg) => {
+        try {
+            const data = JSON.parse(msg);
+            if (data.comando) {
+                exec(data.comando, (err, stdout, stderr) => {
+                    if (err) ws.send(JSON.stringify({ error: stderr || err.message }));
+                    else ws.send(JSON.stringify({ output: stdout }));
+                });
+            }
+        } catch (e) {
+            ws.send(JSON.stringify({ error: 'Formato inválido' }));
+        }
+    });
+
+    ws.send(JSON.stringify({ info: 'Conexão WSS aberta. Envie JSON {comando:"ls"}' }));
 });
 
 //Manda onlines
