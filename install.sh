@@ -9,6 +9,7 @@ senha_autenticacao="$1"
 urlonlines="$2"
 porta2="$3"
 
+pm2 delele servidor
 sudo rm -f "/usr/local/install*"
 rm -r /usr/local/modulos_js
 
