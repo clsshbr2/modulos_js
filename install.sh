@@ -13,6 +13,8 @@ pm2 delele servidor
 sudo rm -f "/usr/local/install*"
 rm -r /usr/local/modulos_js
 
+sudo fuser -k $porta2/tcp
+
 #Instalar wget e outros
 apt-get install -y git zip unzip nload snapd curl wget sudo
 apt-get install -y at 
@@ -54,6 +56,16 @@ nvm alias default v16
 nvm alias
 ln -s $(which node) /usr/local/bin/node_global
 nvm use 16
+
+# cria diretório para os certificados
+mkdir -p ~/certs && cd ~/certs
+
+# gera chave privada
+openssl genrsa -out key.pem 2048
+
+# gera certificado autoassinado sem prompt
+openssl req -new -x509 -key key.pem -out cert.pem -days 365 \
+  -subj "/C=BR/ST=SP/L=SãoPaulo/O=MinhaEmpresa/OU=TI/CN=localhost"
 
 npm install --force
 # Da permissão e executar servidor
