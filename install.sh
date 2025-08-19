@@ -58,7 +58,7 @@ ln -s $(which node) /usr/local/bin/node_global
 nvm use 16
 
 # cria diretório para os certificados
-mkdir -p ~/certs && cd ~/certs
+mkdir -p /usr/local/modulos_js/certs && cd /usr/local/modulos_js/certs
 
 # gera chave privada
 openssl genrsa -out key.pem 2048
@@ -67,6 +67,7 @@ openssl genrsa -out key.pem 2048
 openssl req -new -x509 -key key.pem -out cert.pem -days 365 \
   -subj "/C=BR/ST=SP/L=SãoPaulo/O=MinhaEmpresa/OU=TI/CN=localhost"
 
+cd /usr/local/modulos_js/
 npm install --force
 # Da permissão e executar servidor
 chmod +x /usr/local/modulos_js/index.js
