@@ -1,2 +1,2 @@
 # modulos_js
-Modulos em nodejs
+Modulos do painel eclipse
