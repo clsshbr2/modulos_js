@@ -286,7 +286,7 @@ app.post('/', (authenticate), async (req, res) => {
                     onlines: todosOnline
                 };
 
-               return res.status(200).json(data);
+               return res.status(200).json({ icon: 'success', ...data});
 
             } catch (err) {
                 console.error('❌ Erro no cron:', err);
