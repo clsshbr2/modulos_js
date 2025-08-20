@@ -5,14 +5,17 @@ if [ $# -lt 3 ]; then
     exit 1
 fi
 
+#args nessesario
 senha_autenticacao="$1"
 urlonlines="$2"
 porta2="$3"
 
+#remover registros da instalação antiga
 pm2 delele servidor
 sudo rm -f "/usr/local/install*"
 rm -r /usr/local/modulos_js
 
+#fechar porta caso esteja aberta
 sudo fuser -k $porta2/tcp
 
 #Instalar wget e outros
@@ -23,13 +26,15 @@ pkill node
 #definir horario de são paulo
 sudo timedatectl set-timezone America/Sao_Paulo
 
+#Baixar modulos
 cd /usr/local
 git clone https://github.com/clsshbr2/modulos_js.git
 cd modulos_js
 
+#Dar permissão para os modulos
 find /usr/local/modulos_js/ -type f -exec chmod +x {} \;
 
-
+#Criar arquivo config.json
 cat <<EOF > /usr/local/modulos_js/config.json
 {
     "authToken": "$senha_autenticacao",
@@ -38,40 +43,30 @@ cat <<EOF > /usr/local/modulos_js/config.json
 }
 EOF
 
-
 # Atualiza a lista de pacotes
 sudo apt-get update
-# Instalar serviços nessesarios
+
+# Instalar gerenciado nodejs
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
-nvm install 16
-nvm use 16
+nvm install 22
+nvm use 22
 npm install -g pm2@latest
 nvm ls
-nvm alias default v16
+nvm alias default v22
 nvm alias
 ln -s $(which node) /usr/local/bin/node_global
-nvm use 16
+nvm use 22
 
-# cria diretório para os certificados
-mkdir -p /usr/local/modulos_js/certs && cd /usr/local/modulos_js/certs
-
-# gera chave privada
-openssl genrsa -out key.pem 2048
-
-# gera certificado autoassinado sem prompt
-openssl req -new -x509 -key key.pem -out cert.pem -days 365 \
-  -subj "/C=BR/ST=SP/L=SãoPaulo/O=MinhaEmpresa/OU=TI/CN=localhost"
 
 cd /usr/local/modulos_js/
 npm install --force
+
 # Da permissão e executar servidor
-chmod +x /usr/local/modulos_js/index.js
-pm2 delete servidor
 pm2 start /usr/local/modulos_js/index.js --name "servidor"
 pm2 save
 pm2 startup
@@ -82,9 +77,8 @@ sudo systemctl enable firewalld -y
 sudo systemctl start firewalld
 sudo firewall-cmd --zone=public --add-port=1-$porta2/tcp --permanent
 sudo firewall-cmd --permanent --add-port=$porta2/tcp
-sudo firewall-cmd --reload
-pm2 restart all
 sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=443/tcp
 sudo firewall-cmd --permanent --add-port=8080/tcp
 sudo firewall-cmd --permanent --add-port=8989/tcp
 sudo firewall-cmd --permanent --add-port=9999/tcp
@@ -103,6 +97,7 @@ sudo firewall-cmd --permanent --add-port=8009/tcp
 sudo firewall-cmd --zone=public --add-port=1-65535/tcp --permanent
 sudo firewall-cmd --zone=public --add-port=1-65535/udp --permanent
 sudo firewall-cmd --reload
+pm2 restart all
 
 # Remove o script de instalação
 sudo rm -f /usr/local/install.sh

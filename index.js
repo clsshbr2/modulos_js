@@ -7,19 +7,16 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const { execSync } = require('child_process');
 const cron = require('node-cron');
-const https = require('https');
-const selfsigned = require('selfsigned');
-const WebSocket = require('ws');
 
 //Modulos
 const { crearteste } = require('./modulos/addteste');
+const { criaruserssh } = require('./modulos/addlogin');
 const { criarUserv2 } = require('./modulos/addV2');
 const { criarUserxray } = require('./modulos/addxray');
 const { deletexray_v2ray } = require('./modulos/deletexrayV2ray');
 const { deleteUser } = require('./modulos/deleteUser');
 const { getOnlineUsers } = require('./modulos/onlinesssh');
 const { getonlinesV2 } = require('./modulos/onlinesV2');
-const { criaruserssh } = require('./modulos/addlogin');
 
 const configpasta = 'config.json'
 if (!fs.existsSync(configpasta)) {
@@ -261,15 +258,16 @@ app.post('/', (authenticate), async (req, res) => {
             }
         }
 
-        if (comando === 'get_online') {
+        //Buscar onlines
+        if (comando === 'getOn') {
             try {
                 const [rawV2, rawSSH] = await Promise.all([
                     getonlinesV2().catch(err => {
-                        console.error('⚠️ Erro em getonlinesV2:', err.message);
+                        console.error('⚠️ Erro em getonlinesV2:', err);
                         return [];
                     }),
                     getOnlineUsers().catch(err => {
-                        console.error('⚠️ Erro em getOnlineUsers:', err.message);
+                        console.error('⚠️ Erro em getOnlineUsers:', err);
                         return [];
                     })
                 ]);
@@ -288,13 +286,12 @@ app.post('/', (authenticate), async (req, res) => {
                     onlines: todosOnline
                 };
 
-                return res.status(200).json({ icon: "success", mensagem: data });
+               return res.status(200).json(data);
 
             } catch (err) {
-                return res.status(200).json({ icon: "error", mensagem: `Erro ao buscar onlines` });
+                console.error('❌ Erro no cron:', err);
             }
         }
-
     } catch (error) {
         console.log(error)
         res.status(200).json({ icon: 'error', mensagem: 'Erro ao processar', error: error });
@@ -302,31 +299,9 @@ app.post('/', (authenticate), async (req, res) => {
 
 });
 
-// --- HTTPS Self-Signed ---
-const attrs = [{ name: 'commonName', value: 'localhost' }];
-const pems = selfsigned.generate(attrs, { days: 365 });
-
-const server = https.createServer({
-    key: fs.readFileSync(__dirname + '/certs/key.pem'),
-    cert: fs.readFileSync(__dirname + '/certs/cert.pem')
-}, app);
-
-
-server.listen(port, () => {
-    console.log(`Servidor HTTPS iniciado na porta ${port}`);
-});
-
-const wss = new WebSocket.Server({ server, path: '/webssh' });
-
-wss.on('connection', (ws) => {
-    console.log('Cliente conectado via WSS!');
-
-    ws.on('message', (msg) => {
-        console.log('Mensagem recebida:', msg.toString());
-        ws.send(`Você disse: ${msg}`);
-    });
-
-    ws.send('Conexão WSS estabelecida!');
+// Inicializa o servidor
+app.listen(port, () => {
+    console.log('Servidor iniciado');
 });
 
 //Manda onlines
@@ -336,11 +311,11 @@ cron.schedule('* * * * *', async () => {
     try {
         const [rawV2, rawSSH] = await Promise.all([
             getonlinesV2().catch(err => {
-                console.error('⚠️ Erro em getonlinesV2:', err.message);
+                console.error('⚠️ Erro em getonlinesV2:', err);
                 return [];
             }),
             getOnlineUsers().catch(err => {
-                console.error('⚠️ Erro em getOnlineUsers:', err.message);
+                console.error('⚠️ Erro em getOnlineUsers:', err);
                 return [];
             })
         ]);
@@ -403,6 +378,7 @@ cron.schedule('*/3 * * * * *', async () => {
     // Salva o JSON atualizado
     fs.writeFileSync(caminhoDelete, JSON.stringify(dadosAtuais, null, 2), 'utf8');
 });
+
 
 //add usuarios ssh
 cron.schedule('*/3 * * * * *', async () => {
