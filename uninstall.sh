@@ -7,8 +7,7 @@ pm2 delete servidor
 pm2 save
 pm2 startup
 
-apt-get autoremove --purge -y
-apt-get clean
+# (removido) "apt-get autoremove --purge" apagava pacotes que outros serviços da VPS usam
 
 # Remover diretórios e arquivos relacionados
 rm -rf /usr/local/modulos_js

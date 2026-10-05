@@ -26,8 +26,8 @@ function criarUserxray(users) {
 
 
     users.forEach(({ uuid, email }) => {
-        const index = inbound.settings.clients.find(c => c.id == uuid || c.email == email);
-        if (index) {
+        const index = inbound.settings.clients.findIndex(c => c.id == uuid || c.email == email);
+        if (index !== -1) {
             // Atualiza cliente existente
             inbound.settings.clients[index] = {
                 email,

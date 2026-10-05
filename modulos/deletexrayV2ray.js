@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { execSync } = require('child_process'); // faltava: o restart abaixo nunca rodava
 
 function deletexray_v2ray(uuids) {
   const possiblePaths = [
@@ -51,18 +52,16 @@ function deletexray_v2ray(uuids) {
     }
   });
 
-  //Reniciar xray
-  try {
-    execSync(`systemctl restart xray`);
-  } catch (error) {
-    console.log('erro ao reniciar xray')
-  }
-
-  //Reniciar v2ray
-  try {
-    execSync(`systemctl restart v2ray`);
-  } catch (error) {
-    console.log('erro ao reniciar v2ray')
+  // Só reinicia se algo foi removido (o restart derruba as conexões de todos os clientes)
+  const algumRemovido = results.some(r => r.removidos > 0);
+  if (algumRemovido) {
+    for (const servico of ['xray', 'v2ray']) {
+      try {
+        execSync(`systemctl is-active --quiet ${servico} && systemctl restart ${servico}`);
+      } catch (error) {
+        // serviço não instalado/parado: normal
+      }
+    }
   }
   return {
     icon: 'success',

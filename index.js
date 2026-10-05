@@ -20,7 +20,8 @@ const { getonlinesV2 } = require('./modulos/onlinesV2');
 
 const configpasta = 'config.json'
 if (!fs.existsSync(configpasta)) {
-    process.exit('Arquivo json não encontrado');
+    console.error('Arquivo config.json não encontrado');
+    process.exit(1);
 }
 
 let config = JSON.parse(fs.readFileSync(configpasta, 'utf8'));
@@ -32,6 +33,30 @@ const urlonline = `${urlpainel}/onlines.php`;
 const urlbk = `${urlpainel}/bk.php`;
 const caminhoDelete = './usersToDelete.json';
 const caminhoaddssh = './usersToaddssh.json';
+
+// ---- Filas em arquivo (userDeleteALL / userSinc) ----
+// Chave do item: o painel nem sempre manda "id"; sem isso a 2ª leva era descartada
+// enquanto a 1ª ainda estava na fila ("Nenhum novo usuario adicionado").
+const chaveItem = (u) => u.id !== undefined ? `id:${u.id}` : `${u.type}:${u.username}`;
+function lerFila(caminho) {
+    try {
+        if (!fs.existsSync(caminho)) return [];
+        const d = JSON.parse(fs.readFileSync(caminho, 'utf8'));
+        return Array.isArray(d) ? d : [];
+    } catch (e) {
+        console.error('Fila corrompida, recomeçando:', caminho, e.message);
+        return [];
+    }
+}
+function gravarFila(caminho, lista) {
+    fs.writeFileSync(caminho, JSON.stringify(lista, null, 2), 'utf8');
+}
+// Remove da fila (relendo o arquivo) só os itens processados; assim o que chegou
+// durante o processamento não é apagado.
+function removerDaFila(caminho, processados) {
+    const chaves = new Set(processados.map(chaveItem));
+    gravarFila(caminho, lerFila(caminho).filter(u => !chaves.has(chaveItem(u))));
+}
 
 
 const app = express();
@@ -59,6 +84,11 @@ app.post('/', (authenticate), async (req, res) => {
     const { comando, exec: execCmd, dados } = req.body;
 
     try {
+
+        const comandosValidos = ['exec', 'criarTestssh', 'criaruserSsh', 'criarUserv2', 'criarUserxray', 'deleteUsers', 'userDeleteALL', 'userSinc', 'getOn'];
+        if (!comandosValidos.includes(comando)) {
+            return res.status(200).json({ icon: 'error', mensagem: `Comando desconhecido: ${comando}` });
+        }
 
         //Executar comando no terminal
         if (comando === 'exec') {
@@ -168,15 +198,16 @@ app.post('/', (authenticate), async (req, res) => {
                 return res.status(200).json({ icon: "error", mensagem: "Dados não fornecidos" });
             }
             console.log('Dados recebidos de deleteUsers: ', dados)
-            if (!dados.uuid || !dados.username) {
+            if (!dados.username) {
                 return res.status(200).json({ icon: "error", mensagem: `Campos obrigatório ausente` });
             }
 
-            const deleta_xray = await deletexray_v2ray([dados.uuid]);
-            console.log('Resposta Delete xray: ', deleta_xray)
-
-            const deleta_v2ray = await deletexray_v2ray([dados.uuid]);
-            console.log('Resposta Delete xray: ', deleta_v2ray)
+            // O painel manda o uuid como lista; aceita string também. (Já remove de xray e v2ray.)
+            const uuids = (Array.isArray(dados.uuid) ? dados.uuid : [dados.uuid]).filter(u => u && u !== '0');
+            if (uuids.length > 0) {
+                const deleta_xray = await deletexray_v2ray(uuids);
+                console.log('Resposta Delete xray/v2ray: ', deleta_xray)
+            }
 
             const Deleteuser = await deleteUser(dados.username);
             console.log('Resposta Delete User: ', Deleteuser)
@@ -202,21 +233,12 @@ app.post('/', (authenticate), async (req, res) => {
                 });
             }
 
-            // Se o arquivo existir, carrega os dados existentes
-            if (fs.existsSync(caminhoDelete)) {
-                dadosAtuais = JSON.parse(fs.readFileSync(caminhoDelete, 'utf8'));
-            }
-
-            // Cria um Set com os IDs já existentes
-            const idsExistentes = new Set(dadosAtuais.map(u => u.id));
-
-            // Filtra os novos usuários para adicionar somente os que não estão no arquivo
-            const novosUsuarios = dados.filter(u => !idsExistentes.has(u.id));
+            dadosAtuais = lerFila(caminhoDelete);
+            const idsExistentes = new Set(dadosAtuais.map(chaveItem));
+            const novosUsuarios = dados.filter(u => !idsExistentes.has(chaveItem(u)));
 
             if (novosUsuarios.length > 0) {
-                // Adiciona os novos usuários ao array e salva novamente
-                const dadosAtualizados = [...dadosAtuais, ...novosUsuarios];
-                fs.writeFileSync(caminhoDelete, JSON.stringify(dadosAtualizados, null, 2), 'utf8');
+                gravarFila(caminhoDelete, [...dadosAtuais, ...novosUsuarios]);
                 return res.status(200).json({ icon: "success", mensagem: `Usuarios adicionado e seram removidos em breve` });
             } else {
                 return res.status(200).json({ icon: "error", mensagem: `Nenhum novo usuario adicionado` });
@@ -241,17 +263,12 @@ app.post('/', (authenticate), async (req, res) => {
                 });
             }
 
-            if (fs.existsSync(caminhoaddssh)) {
-                dadosAtuais = JSON.parse(fs.readFileSync(caminhoaddssh, 'utf8'));
-            }
-            const idsExistentes = new Set(dadosAtuais.map(u => u.id));
-
-            const novosUsuarios = dados.filter(u => !idsExistentes.has(u.id));
+            dadosAtuais = lerFila(caminhoaddssh);
+            const idsExistentes = new Set(dadosAtuais.map(chaveItem));
+            const novosUsuarios = dados.filter(u => !idsExistentes.has(chaveItem(u)));
 
             if (novosUsuarios.length > 0) {
-                // Adiciona os novos usuários ao array e salva novamente
-                const dadosAtualizados = [...dadosAtuais, ...novosUsuarios];
-                fs.writeFileSync(caminhoaddssh, JSON.stringify(dadosAtualizados, null, 2), 'utf8');
+                gravarFila(caminhoaddssh, [...dadosAtuais, ...novosUsuarios]);
                 return res.status(200).json({ icon: "success", mensagem: `Usuarios sendo sincronizados` });
             } else {
                 return res.status(200).json({ icon: "error", mensagem: `Nenhum novo usuario adicionado` });
@@ -334,7 +351,7 @@ cron.schedule('* * * * *', async () => {
             onlines: todosOnline
         };
 
-        await axios.post(urlonline, data).then((resposta) => {
+        await axios.post(urlonline, data, { timeout: 30000 }).then((resposta) => {
             console.log('✅ Usuários online enviados com sucesso Resposta: ', resposta?.data);
         });
 
@@ -344,138 +361,99 @@ cron.schedule('* * * * *', async () => {
 });
 
 //Deletar usuarios
+let apagandoFila = false; // evita 2 execuções ao mesmo tempo (o cron roda a cada 3s)
 cron.schedule('*/3 * * * * *', async () => {
-    if (!fs.existsSync(caminhoDelete)) return;
+    if (apagandoFila) return;
+    apagandoFila = true;
+    try {
+        const dadosAtuais = lerFila(caminhoDelete);
+        if (dadosAtuais.length === 0) return;
 
-    let dadosAtuais = JSON.parse(fs.readFileSync(caminhoDelete, 'utf8'));
-    if (dadosAtuais.length === 0) return;
+        // Pega um lote (SSH é um por vez: é lento porque derruba sessões)
+        const lote = dadosAtuais.slice(0, 20);
+        const xrayV2 = lote.filter(u => ['xray', 'v2ray', 'ssh_xray', 'ssh_v2ray'].includes(u.type) && u.uuid && u.uuid !== '0').map(u => u.uuid);
+        if (xrayV2.length > 0) await deletexray_v2ray(xrayV2);
 
-    // Filtra por tipo
-    const xray = dadosAtuais.filter(u => u.type === 'xray' || u.type === 'ssh_xray').map(u => u.uuid);
-    const v2ray = dadosAtuais.filter(u => u.type === 'v2ray' || u.type === 'ssh_v2ray').map(u => u.uuid);
-    const sshUser = dadosAtuais.find(u => u.type === 'ssh'); // apenas 1 ssh por vez
-    // Deleta lotes
-    if (xray.length > 0) await deletexray_v2ray(xray);
-    if (v2ray.length > 0) await deletexray_v2ray(v2ray);
-    if (sshUser) await deleteUser(sshUser.username);
-
-    // Atualiza os tipos deletados (xray e v2ray) para 'ssh'
-    dadosAtuais = dadosAtuais.map(u => {
-        if (
-            (u.type === 'xray' || u.type === 'ssh_xray') ||
-            (u.type === 'v2ray' || u.type === 'ssh_v2ray')
-        ) {
-            return { ...u, type: 'ssh' };
+        const comSsh = lote.filter(u => ['ssh', 'ssh_xray', 'ssh_v2ray'].includes(u.type) && u.username);
+        for (const u of comSsh.slice(0, 5)) {
+            deleteUser(u.username);
         }
-        return u;
-    });
 
-    // Remove o ssh que foi realmente deletado
-    if (sshUser) {
-        dadosAtuais = dadosAtuais.filter(u => u.username !== sshUser.username);
+        // Tira da fila o que foi tratado: xray/v2ray puros e até 5 com SSH
+        const feitos = lote.filter(u => !comSsh.includes(u) || comSsh.indexOf(u) < 5);
+        removerDaFila(caminhoDelete, feitos);
+    } catch (err) {
+        console.error('❌ Erro ao apagar usuários:', err);
+    } finally {
+        apagandoFila = false;
     }
-
-    // Salva o JSON atualizado
-    fs.writeFileSync(caminhoDelete, JSON.stringify(dadosAtuais, null, 2), 'utf8');
 });
 
 
 //add usuarios ssh
+let adicionandoFila = false;
 cron.schedule('*/3 * * * * *', async () => {
-    if (fs.existsSync(caminhoaddssh)) {
-        let dadosAtuais = JSON.parse(fs.readFileSync(caminhoaddssh, 'utf8'));
+    if (adicionandoFila) return;
+    adicionandoFila = true;
+    try {
+        const lote = lerFila(caminhoaddssh).slice(0, 20);
+        if (lote.length === 0) return;
 
-        if (dadosAtuais.length > 0) {
-            const processados = [];
-            let dadosv2 = []
-            let dadosxray = []
-            for (const usuarioParaadd of dadosAtuais) {
-                try {
-                    processados.push(usuarioParaadd);
-                    console.log(`Adicionando: ${usuarioParaadd.username}`);
+        const dadosv2 = [];
+        const dadosxray = [];
+        const temSsh = (u) => u.username && u.password && u.dias && u.sshlimiter;
+        const temUuid = (u) => u.uuid && u.username;
 
-                    if (usuarioParaadd.type === 'ssh') {
-                        if (usuarioParaadd.username && usuarioParaadd.password && usuarioParaadd.dias && usuarioParaadd.sshlimiter) {
-                            await criaruserssh(usuarioParaadd.username, usuarioParaadd.password, usuarioParaadd.dias, usuarioParaadd.sshlimiter);
-                        } else {
-                            console.log(`Dados faltando para criar usuário SSH:`, usuarioParaadd);
-                        }
+        for (const u of lote) {
+            try {
+                console.log(`Adicionando: ${u.username}`);
+                const comSsh = ['ssh', 'ssh_v2ray', 'ssh_xray'].includes(u.type);
+                if (comSsh) {
+                    if (temSsh(u)) {
+                        // Usuário que já existe é mantido (a sincronização não derruba quem está online)
+                        const r = await criaruserssh(u.username, u.password, u.dias, u.sshlimiter);
+                        if (r.icon !== 'success') console.log(`Falha ao criar SSH ${u.username}:`, r);
+                    } else {
+                        console.log(`Dados faltando para criar usuário SSH:`, u);
                     }
-
-                    if (usuarioParaadd.type === 'v2ray') {
-                        if (usuarioParaadd.uuid && usuarioParaadd.username) {
-                            dadosv2.push({ email: usuarioParaadd.username, uuid: usuarioParaadd.uuid })
-
-                        } else {
-                            console.log(`Dados faltando para criar usuário V2Ray:`, usuarioParaadd);
-                        }
-                    }
-
-                    if (usuarioParaadd.type === 'xray') {
-                        if (usuarioParaadd.uuid && usuarioParaadd.username) {
-                            dadosxray.push({ email: usuarioParaadd.username, uuid: usuarioParaadd.uuid })
-                        } else {
-                            console.log(`Dados faltando para criar usuário XRay:`, usuarioParaadd);
-
-                        }
-                    }
-
-                    if (usuarioParaadd.type === 'ssh_v2ray') {
-                        if (usuarioParaadd.username && usuarioParaadd.password && usuarioParaadd.dias && usuarioParaadd.sshlimiter) {
-                            await criaruserssh(usuarioParaadd.username, usuarioParaadd.password, usuarioParaadd.dias, usuarioParaadd.sshlimiter);
-                        } else {
-                            console.log(`Dados faltando para criar usuário SSH:`, usuarioParaadd);
-                        }
-                        if (usuarioParaadd.uuid && usuarioParaadd.username) {
-                            dadosv2.push({ email: usuarioParaadd.username, uuid: usuarioParaadd.uuid })
-
-                        } else {
-                            console.log(`Dados faltando para criar usuário V2Ray:`, usuarioParaadd);
-                        }
-                    }
-
-                    if (usuarioParaadd.type === 'ssh_xray') {
-                        if (usuarioParaadd.username && usuarioParaadd.password && usuarioParaadd.dias && usuarioParaadd.sshlimiter) {
-                            await criaruserssh(usuarioParaadd.username, usuarioParaadd.password, usuarioParaadd.dias, usuarioParaadd.sshlimiter);
-                        } else {
-                            console.log(`Dados faltando para criar usuário SSH:`, usuarioParaadd);
-                        }
-                        if (usuarioParaadd.uuid && usuarioParaadd.username) {
-                            dadosxray.push({ email: usuarioParaadd.username, uuid: usuarioParaadd.uuid })
-                        } else {
-                            console.log(`Dados faltando para criar usuário XRay:`, usuarioParaadd);
-
-                        }
-                    }
-                } catch (error) {
-
                 }
-
+                if (u.type === 'v2ray' || u.type === 'ssh_v2ray') {
+                    if (temUuid(u)) dadosv2.push({ email: u.username, uuid: u.uuid });
+                    else console.log(`Dados faltando para criar usuário V2Ray:`, u);
+                }
+                if (u.type === 'xray' || u.type === 'ssh_xray') {
+                    if (temUuid(u)) dadosxray.push({ email: u.username, uuid: u.uuid });
+                    else console.log(`Dados faltando para criar usuário XRay:`, u);
+                }
+            } catch (error) {
+                console.error(`Erro ao adicionar ${u.username}:`, error);
             }
-
-            if (dadosv2.length > 0) {
-                await criarUserv2(dadosv2)
-            }
-
-            if (dadosxray.length > 0) {
-                await criarUserxray(dadosxray);
-            }
-
-            // Remove os usuários processados da lista
-            const dadosRestantes = dadosAtuais.filter(u => !processados.includes(u));
-            fs.writeFileSync(caminhoaddssh, JSON.stringify(dadosRestantes, null, 2), 'utf8');
         }
+
+        if (dadosv2.length > 0) await criarUserv2(dadosv2);
+        if (dadosxray.length > 0) await criarUserxray(dadosxray);
+
+        // Remove só o lote processado (o que chegou durante o processamento fica)
+        removerDaFila(caminhoaddssh, lote);
+    } catch (err) {
+        console.error('❌ Erro ao adicionar usuários:', err);
+    } finally {
+        adicionandoFila = false;
     }
 });
 
 //fazer backup do painel
 cron.schedule('*/15 * * * *', async () => {
-    await axios.get(urlbk);
+    try {
+        await axios.get(urlbk, { timeout: 60000 });
+    } catch (err) {
+        console.error('❌ Erro no backup do painel:', err.message);
+    }
 });
 
 
 async function getPublicIP() {
-    const response = await axios.get('https://api.ipify.org?format=json');
+    const response = await axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
     const ip = response.data.ip;
     return ip;
 }

@@ -11,9 +11,9 @@ urlonlines="$2"
 porta2="$3"
 
 #remover registros da instalação antiga
-pm2 delele servidor
-sudo rm -f "/usr/local/install*"
-rm -r /usr/local/modulos_js
+pm2 delete servidor
+sudo rm -f /usr/local/install*
+rm -rf /usr/local/modulos_js
 
 #fechar porta caso esteja aberta
 sudo fuser -k $porta2/tcp
@@ -73,7 +73,7 @@ pm2 startup
 
 # Configura firewall
 sudo apt-get install firewalld -y
-sudo systemctl enable firewalld -y
+sudo systemctl enable firewalld
 sudo systemctl start firewalld
 sudo firewall-cmd --zone=public --add-port=1-$porta2/tcp --permanent
 sudo firewall-cmd --permanent --add-port=$porta2/tcp
@@ -104,5 +104,5 @@ sudo rm -f /usr/local/install.sh
 find /usr/local -type f -name "install.sh*" -exec rm -f {} \;
 find /usr/local -type f -name "uninstall.sh*" -exec rm -f {} \;
 
-echo "Instalação concluida." 
+echo "Instalação concluida."
 
