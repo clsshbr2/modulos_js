@@ -104,5 +104,5 @@ sudo rm -f /usr/local/install.sh
 find /usr/local -type f -name "install.sh*" -exec rm -f {} \;
 find /usr/local -type f -name "uninstall.sh*" -exec rm -f {} \;
 
-echo "Instalação concluida."
+echo "Instalação concluida." 
 
