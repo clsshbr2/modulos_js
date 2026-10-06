@@ -5,8 +5,12 @@ const PROXY_BIN = '/usr/local/bin/proxy-server';
 const STATS_JSON = '/etc/proto-server/stats.json';
 const STATS_TOLERANCIA_SEG = 180; // quem não aparece no stats.json há mais que isso já saiu
 
+// Devolve o que o comando imprimiu mesmo que ele termine com código de erro; falha vira aviso no log (pm2 logs)
 const rodar = (cmd, args) => new Promise((resolve) => {
-    execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024, timeout: 8000 }, (err, stdout) => resolve(err ? '' : String(stdout)));
+    execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024, timeout: 20000 }, (err, stdout) => {
+        if (err) console.error(`⚠️ ${cmd} ${args.join(' ')}: ${err.killed ? 'demorou demais' : err.message}`);
+        resolve(String(stdout || ''));
+    });
 });
 
 const dois = (n) => String(n).padStart(2, '0');
@@ -77,7 +81,11 @@ function lerStatsOnlines(texto, agora = new Date()) {
 
 async function getOnlinesProxy() {
     if (!fs.existsSync(PROXY_BIN)) return [];
-    try { return lerProxyOnlines(await rodar(PROXY_BIN, ['--onlines'])); } catch (e) { return []; }
+    try {
+        const lista = lerProxyOnlines(await rodar(PROXY_BIN, ['--onlines']));
+        console.log(`proxy-server --onlines: ${lista.length} usuários`);
+        return lista;
+    } catch (e) { return []; }
 }
 
 async function getOnlinesStats() {
