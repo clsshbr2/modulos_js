@@ -40,7 +40,7 @@ function lerSessoes(texto) {
     }
     const sessoes = new Map();
     for (const pr of procs) {
-        if (/^sshd:\s.*\[priv\]/.test(pr.args)) {
+        if (/^sshd(?:-session)?:\s.*\[priv\]/.test(pr.args)) {
             sessoes.set(pr.pid, [pr.pid, ...procs.filter(c => c.ppid === pr.pid).map(c => c.pid)]);
         }
     }
@@ -93,13 +93,13 @@ const getOnlineUsers = () => new Promise(async (resolve, reject) => {
 
         const bandaPorPid = await coletarBandaPorSessao();
         const lines = stdout.split('\n');
-        const sshLines = lines.filter(line => line.includes('sshd') && line.includes('[priv]'));
+        const sshLines = lines.filter(line => /sshd(-session)?:/.test(line) && line.includes('[priv]'));
 
         const userList = [];
 
         // Para cada linha do processo SSH, obter o tempo de execução
         for (let line of sshLines) {
-            const user = line.split('sshd:')[1].split('[priv]')[0].trim();
+            const user = line.split(/sshd(?:-session)?:/)[1].split('[priv]')[0].trim();
             const pidMatch = line.match(/\d+/); // Captura o PID do processo
             let uptime = '00:00:00';
             let banda = null;

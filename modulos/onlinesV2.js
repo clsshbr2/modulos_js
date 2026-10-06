@@ -19,6 +19,14 @@ function saveUptimeData(data) {
 }
 
 // Função para formatar o uptime em HH:mm:ss
+// int64 do gRPC pode chegar como número, texto ou objeto Long {low, high}: sempre vira número (bytes)
+function paraNumero(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'object' && 'low' in v) return (v.high >>> 0) * 4294967296 + (v.low >>> 0);
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function formatUptime(startTime) {
   try {
     const now = new Date();
@@ -86,8 +94,8 @@ async function getonlinesV2() {
               };
             }
 
-            if (stat.name.includes('uplink')) usuariosMap[user].uplink = stat.value;
-            if (stat.name.includes('downlink')) usuariosMap[user].downlink = stat.value;
+            if (stat.name.includes('uplink')) usuariosMap[user].uplink = paraNumero(stat.value);
+            if (stat.name.includes('downlink')) usuariosMap[user].downlink = paraNumero(stat.value);
 
             // Se não há tráfego, remover o usuário do uptimeData
             if (usuariosMap[user].uplink == 0 && usuariosMap[user].downlink == 0) {

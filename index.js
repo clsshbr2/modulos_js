@@ -17,6 +17,7 @@ const { deletexray_v2ray } = require('./modulos/deletexrayV2ray');
 const { deleteUser } = require('./modulos/deleteUser');
 const { getOnlineUsers } = require('./modulos/onlinesssh');
 const { getonlinesV2 } = require('./modulos/onlinesV2');
+const { getOnlinesProxy, getOnlinesStats, mesclarOnlines } = require('./modulos/onlinesproxy');
 
 const configpasta = 'config.json'
 if (!fs.existsSync(configpasta)) {
@@ -278,7 +279,7 @@ app.post('/', (authenticate), async (req, res) => {
         //Buscar onlines
         if (comando === 'getOn') {
             try {
-                const [rawV2, rawSSH] = await Promise.all([
+                const [rawV2, rawSSH, rawProxy, rawStats] = await Promise.all([
                     getonlinesV2().catch(err => {
                         console.error('⚠️ Erro em getonlinesV2:', err);
                         return [];
@@ -286,11 +287,13 @@ app.post('/', (authenticate), async (req, res) => {
                     getOnlineUsers().catch(err => {
                         console.error('⚠️ Erro em getOnlineUsers:', err);
                         return [];
-                    })
+                    }),
+                    getOnlinesProxy().catch(() => []),   // proxy-server --onlines
+                    getOnlinesStats().catch(() => [])    // /etc/proto-server/stats.json
                 ]);
 
                 const onlinesV2 = Array.isArray(rawV2) ? rawV2 : [];
-                const onlinesSSH = Array.isArray(rawSSH) ? rawSSH : [];
+                const onlinesSSH = mesclarOnlines(Array.isArray(rawSSH) ? rawSSH : [], Array.isArray(rawProxy) ? rawProxy : [], Array.isArray(rawStats) ? rawStats : []);
 
                 const todosOnline = [
                     ...onlinesV2.map(user => ({ ...user, tipo: 'xray' })),
@@ -326,7 +329,7 @@ cron.schedule('* * * * *', async () => {
     console.log('⏰ Cron onlines rodando');
 
     try {
-        const [rawV2, rawSSH] = await Promise.all([
+        const [rawV2, rawSSH, rawProxy, rawStats] = await Promise.all([
             getonlinesV2().catch(err => {
                 console.error('⚠️ Erro em getonlinesV2:', err);
                 return [];
@@ -334,11 +337,13 @@ cron.schedule('* * * * *', async () => {
             getOnlineUsers().catch(err => {
                 console.error('⚠️ Erro em getOnlineUsers:', err);
                 return [];
-            })
+            }),
+            getOnlinesProxy().catch(() => []),   // proxy-server --onlines
+            getOnlinesStats().catch(() => [])    // /etc/proto-server/stats.json
         ]);
 
         const onlinesV2 = Array.isArray(rawV2) ? rawV2 : [];
-        const onlinesSSH = Array.isArray(rawSSH) ? rawSSH : [];
+        const onlinesSSH = mesclarOnlines(Array.isArray(rawSSH) ? rawSSH : [], Array.isArray(rawProxy) ? rawProxy : [], Array.isArray(rawStats) ? rawStats : []);
 
         const todosOnline = [
             ...onlinesV2.map(user => ({ ...user, tipo: 'xray' })),
